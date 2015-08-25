@@ -1,0 +1,175 @@
+// ボタン判定
+const int buttonON = LOW;
+const int buttonOFF = HIGH;
+// 左右のスイッチ
+const int rightPushSwitch = 0;
+const int leftPushSwitch = 1;
+// I/O関連定義
+const int loop1RelayPin = 4;
+const int loop2RelayPin = 5;
+const int loop3RelayPin = 6;
+const int loop4RelayPin = 7;
+const int rightPushSwitchPin = 8;
+const int leftPushSwitchPin = 9;
+const int modeSwitchPin = 10;
+const int modeAledPin = 11;
+const int modeBledPin = 12;
+const int powerLedPin = 13;
+const int loop1LedPin = 14;
+const int loop2LedPin = 15;
+const int loop3LedPin = 16;
+const int loop4LedPin = 17;
+// LOOP部のPIN情報配列
+const int loopAry[4][2] = {
+	{loop1RelayPin,loop1LedPin},
+	{loop2RelayPin,loop2LedPin},
+	{loop3RelayPin,loop3LedPin},
+	{loop4RelayPin,loop4LedPin}
+};
+// 唯一選択モードのパターン定義(実LOOPと並びが左右逆なので注意)
+const boolean modeAPtnAry[5][4] = {
+	{false,false,false,false},
+	{true,false,false,false},
+	{false,true,false,false},
+	{false,false,true,false},
+	{false,false,false,true}
+};
+// LOOPモードのパターン定義(実LOOPと並びが左右逆なので注意)
+const boolean modeBPtnAry[4][2] = {
+	{false,false},
+	{true,false},
+	{false,true},
+	{true,true}
+};
+// モード定義
+const int modeA = 0;
+const int modeB = 1;
+
+// グローバル変数
+int modeSwitchStat = buttonOFF;
+int modeSwitchStatOld = buttonOFF;
+int mode = modeA;
+int leftSwitchStat = buttonOFF;
+int leftSwitchStatOld = buttonOFF;
+int rightSwitchStat = buttonOFF;
+int rightSwitchStatOld = buttonOFF;
+int modeAPtn = 0;
+int loop1Ptn = 0;
+int loop2Ptn = 0;
+
+// LOOP部に制御信号を送信
+//  in1:LOOP番号(1～4)
+//  in2:true=ON,false=OFF
+void setLoop(int in1,boolean in2) {
+	int idx;
+	idx = in1 - 1;
+	if(in2 == true) {
+		digitalWrite(loopAry[idx][0], HIGH);
+		digitalWrite(loopAry[idx][1], HIGH);
+	} else {
+		digitalWrite(loopAry[idx][0], LOW);
+		digitalWrite(loopAry[idx][1], LOW);
+	}
+}
+// 唯一選択モードのパターン定義に従ってLOOPを制御
+//  in1:パターン番号(0～4)
+void setModeAPtn(int in1) {
+	int i;
+	for(i = 0; i < 4 ; i++) {
+		setLoop(i+1,modeAPtnAry[in1][i]);
+	}
+}
+// LOOPモードのパターン定義に従ってLOOPを制御
+//  in1:パターン番号(0～3)
+//  in2:左右のプッシュスイッチ
+void setModeBPtn(int in1,int in2) {
+	int i;
+	int j;
+	// 左スイッチの場合オフセットを足す
+	if(in2 == rightPushSwitch) j = 0; else j = 2 ;
+	for(i = 0; i < 2 ; i++) {
+		setLoop(i+1+j,modeBPtnAry[in1][i]);
+	}
+}
+// リレーの全OFF
+void initLed() {
+	digitalWrite(loop1RelayPin,LOW);
+	digitalWrite(loop2RelayPin,LOW);
+	digitalWrite(loop3RelayPin,LOW);
+	digitalWrite(loop4RelayPin,LOW);
+	digitalWrite(loop1LedPin,LOW);
+	digitalWrite(loop2LedPin,LOW);
+	digitalWrite(loop3LedPin,LOW);
+	digitalWrite(loop4LedPin,LOW);
+}
+
+void setup() {
+	// 各PINの設定
+    pinMode(loop1RelayPin, OUTPUT);
+    pinMode(loop2RelayPin, OUTPUT);
+    pinMode(loop3RelayPin, OUTPUT);
+    pinMode(loop4RelayPin, OUTPUT);
+    pinMode(rightPushSwitchPin, INPUT_PULLUP);
+    pinMode(leftPushSwitchPin, INPUT_PULLUP);
+    pinMode(modeSwitchPin, INPUT_PULLUP);
+    pinMode(modeAledPin, OUTPUT);
+    pinMode(modeBledPin, OUTPUT);
+    pinMode(powerLedPin, OUTPUT);
+    pinMode(loop1LedPin, OUTPUT);
+    pinMode(loop2LedPin, OUTPUT);
+    pinMode(loop3LedPin, OUTPUT);
+    pinMode(loop4LedPin, OUTPUT);
+    digitalWrite(powerLedPin,HIGH);		//電源LED ON
+}
+void loop() {
+	// モードスイッチの判定
+	modeSwitchStat = digitalRead(modeSwitchPin);
+	if( modeSwitchStat != modeSwitchStatOld ) {		//スイッチの状態と現在のモードが違う場合
+		if( modeSwitchStat == buttonOFF ) mode = modeA; else mode = modeB;	//モード設定
+		//モード表示のLEDを切り替え
+		if( mode == modeA ) {
+			digitalWrite(modeAledPin,HIGH);
+			digitalWrite(modeBledPin,LOW);
+			modeAPtn = 0;		//パターン初期化
+		} else {
+			digitalWrite(modeAledPin,LOW);
+			digitalWrite(modeBledPin,HIGH);
+			loop1Ptn = 0;		//パターン初期化
+			loop2Ptn = 0;
+		}
+		initLed();
+	}
+        modeSwitchStatOld = modeSwitchStat;
+
+	// 右側フットスイッチの判定
+	rightSwitchStat = digitalRead(rightPushSwitchPin);
+	if( rightSwitchStat == buttonON && rightSwitchStatOld == buttonOFF ) {	// 現在=ONで過去=OFF
+		if( mode == modeA ) {				// 唯一選択モード
+			modeAPtn--;						//パターンをマイナス
+			if( modeAPtn < 0) modeAPtn = 0;
+			setModeAPtn(modeAPtn);			// LED＆リレー制御
+		} else {							// LOOPモード
+			loop1Ptn++;						//パターンをプラス
+			if( loop1Ptn > 3) loop1Ptn = 0;		//パターンが上限を超えたら0に戻す
+			setModeBPtn(loop1Ptn,rightPushSwitch);		// LED＆リレー制御
+		}
+		delay(10);		//チャタリング対策
+	}
+	rightSwitchStatOld = rightSwitchStat;
+
+	// 左側フットスイッチの判定
+	leftSwitchStat = digitalRead(leftPushSwitchPin);
+	if( leftSwitchStat == buttonON && leftSwitchStatOld == buttonOFF ) {	// 現在=ONで過去=OFF
+		if( mode == modeA ) {				// 唯一選択モード
+			modeAPtn++;						//パターンをプラス
+			if( modeAPtn > 4) modeAPtn = 4;
+			setModeAPtn(modeAPtn);			// LED＆リレー制御
+		} else {							// LOOPモード
+			loop2Ptn++;						//パターンをプラス
+			if( loop2Ptn > 3) loop2Ptn = 0;		//パターンが上限を超えたら0に戻す
+			setModeBPtn(loop2Ptn,leftPushSwitch);		// LED＆リレー制御
+		}
+		delay(10);		//チャタリング対策
+	}
+	leftSwitchStatOld = leftSwitchStat;
+}
